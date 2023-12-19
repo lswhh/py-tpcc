@@ -32,13 +32,14 @@
 from __future__ import with_statement
 
 import os
-import sqlite3
+# import sqlite3
+import pyodbc
 import logging
-import commands
+import subprocess
 from pprint import pprint,pformat
 
 import constants
-from abstractdriver import *
+from .abstractdriver import AbstractDriver
 
 TXN_QUERIES = {
     "DELIVERY": {
@@ -99,33 +100,41 @@ TXN_QUERIES = {
 
 
 ## ==============================================
-## SqliteDriver
+## MariadbDriver
 ## ==============================================
-class SqliteDriver(AbstractDriver):
+class MariadbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "database": ("The path to the SQLite database", "/tmp/tpcc.db" ),
+        "dsn":              ("The mariadb connection DSN", "mariadb-dsn"),
+        "database":         ("Database name", "tpcc"),
+        "user":             ("User name", "tpcc"),
+        "password":         ("Password ", "tpcc"),
     }
     
     def __init__(self, ddl):
-        super(SqliteDriver, self).__init__("sqlite", ddl)
+        super(MariadbDriver, self).__init__("mariadb", ddl)
         self.database = None
+        self.user = None
+        self.passwd = None
         self.conn = None
         self.cursor = None
+        self.connStr = None
     
     ## ----------------------------------------------
     ## makeDefaultConfig
     ## ----------------------------------------------
     def makeDefaultConfig(self):
-        return SqliteDriver.DEFAULT_CONFIG
+        return MariadbDriver.DEFAULT_CONFIG
     
     ## ----------------------------------------------
     ## loadConfig
     ## ----------------------------------------------
     def loadConfig(self, config):
-        for key in SqliteDriver.DEFAULT_CONFIG.keys():
+        for key in MariadbDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
         
         self.database = str(config["database"])
+        self.user = str(config["user"])
+        self.passwd = str(config["password"])
         
         if config["reset"] and os.path.exists(self.database):
             logging.debug("Deleting database '%s'" % self.database)
@@ -134,12 +143,13 @@ class SqliteDriver(AbstractDriver):
         if os.path.exists(self.database) == False:
             logging.debug("Loading DDL file '%s'" % (self.ddl))
             ## HACK
-            cmd = "sqlite3 %s < %s" % (self.database, self.ddl)
-            (result, output) = commands.getstatusoutput(cmd)
+            cmd = "mariadb -u %s -p%s -D %s< %s" % (self.user, self.passwd, self.database, self.ddl)
+            print("command" + cmd)
+            (result, output) = subprocess.getstatusoutput(cmd)
             assert result == 0, cmd + "\n" + output
         ## IF
-            
-        self.conn = sqlite3.connect(self.database)
+        self.connStr = "DRIVER={%s};SERVER=localhost;DATABASE=%s;USER=%s;PASSWORD=%s;" % ()
+        self.conn = pyodbc.connect(self.connStr)
         self.cursor = self.conn.cursor()
     
     ## ----------------------------------------------
