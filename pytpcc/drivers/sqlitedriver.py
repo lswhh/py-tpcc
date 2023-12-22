@@ -34,11 +34,11 @@ from __future__ import with_statement
 import os
 import sqlite3
 import logging
-import commands
+import subprocess
 from pprint import pprint,pformat
 
 import constants
-from abstractdriver import *
+from .abstractdriver import AbstractDriver
 
 TXN_QUERIES = {
     "DELIVERY": {
@@ -135,7 +135,7 @@ class SqliteDriver(AbstractDriver):
             logging.debug("Loading DDL file '%s'" % (self.ddl))
             ## HACK
             cmd = "sqlite3 %s < %s" % (self.database, self.ddl)
-            (result, output) = commands.getstatusoutput(cmd)
+            (result, output) = subprocess.getstatusoutput(cmd)
             assert result == 0, cmd + "\n" + output
         ## IF
             

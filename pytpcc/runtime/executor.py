@@ -97,6 +97,53 @@ class Executor:
         return (global_result)
     ## DEF
 
+    def executepyodbc(self, duration):
+        global_result = results.Results()
+        assert global_result, "Failed to return a Results object"
+        logging.debug("Executing benchmark for %d seconds" % duration)
+        start = global_result.startBenchmark()
+        debug = logging.getLogger().isEnabledFor(logging.DEBUG)
+        # Batch Results
+        batch_result = results.Results()
+        start_batch = batch_result.startBenchmark()
+        while (time.time() - start) <= duration:
+            txn, params = self.doOne()
+            global_txn_id = global_result.startTransaction(txn)
+            batch_txn_id = batch_result.startTransaction(txn)
+            if debug: logging.debug("Executing '%s' transaction" % txn)
+            try:
+                (val) = self.driver.executeTransaction(txn, params)
+            except KeyboardInterrupt:
+                return -1
+            except (Exception, AssertionError) as ex:
+                logging.warn("Failed to execute Transaction '%s': %s" % (txn, ex))
+                traceback.print_exc(file=sys.stdout)
+                print("Aborting some transaction with some error %s %s" % (txn, ex))
+                global_result.abortTransaction(global_txn_id)
+                batch_result.abortTransaction(batch_txn_id)
+                if self.stop_on_error: raise
+                continue
+
+            if val is None:
+                global_result.abortTransaction(global_txn_id)
+                batch_result.abortTransaction(batch_txn_id)
+                continue
+
+            batch_result.stopTransaction(batch_txn_id)
+            global_result.stopTransaction(global_txn_id)
+
+            if time.time() - start_batch > 900: # every 15 minutes
+                batch_result.stopBenchmark()
+                logging.info(batch_result.show())
+                batch_result = results.Results()
+                start_batch = batch_result.startBenchmark()
+
+        ## WHILE
+        batch_result.stopBenchmark()
+        global_result.stopBenchmark()
+        return (global_result)
+    ## DEF
+
     def doOne(self):
         """Selects and executes a transaction at random. The number of new order transactions executed per minute is the official "tpmC" metric. See TPC-C 5.4.2 (page 71)."""
 

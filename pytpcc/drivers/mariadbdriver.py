@@ -104,7 +104,7 @@ TXN_QUERIES = {
 ## ==============================================
 class MariadbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "dsn":              ("The mariadb connection DSN", "mariadb-dsn"),
+        "driver":           ("The mariadb driver name in odbcinst.ini", "MariaDB"),
         "database":         ("Database name", "tpcc"),
         "user":             ("User name", "tpcc"),
         "password":         ("Password ", "tpcc"),
@@ -135,35 +135,100 @@ class MariadbDriver(AbstractDriver):
         self.database = str(config["database"])
         self.user = str(config["user"])
         self.passwd = str(config["password"])
+        self.ddl = "maria-tpcc.sql"
+
+        # if config["reset"]:
+        #     logging.debug("Deleting database '%s'" % self.database)
+        #     os.unlink(self.database)
         
-        if config["reset"] and os.path.exists(self.database):
-            logging.debug("Deleting database '%s'" % self.database)
-            os.unlink(self.database)
-        
-        if os.path.exists(self.database) == False:
-            logging.debug("Loading DDL file '%s'" % (self.ddl))
-            ## HACK
-            cmd = "mariadb -u %s -p%s -D %s< %s" % (self.user, self.passwd, self.database, self.ddl)
-            print("command" + cmd)
-            (result, output) = subprocess.getstatusoutput(cmd)
-            assert result == 0, cmd + "\n" + output
+        # if os.path.exists(self.database) == False:
+        logging.debug("Drop Table DDL file '%s'" % (self.ddl))        
+        cmd = "mariadb -u %s -p%s -D %s < %s" % (self.user, self.passwd, self.database, "maria-drop.sql")
+        print("command" + cmd)
+        (result, output) = subprocess.getstatusoutput(cmd)
+        assert result == 0, cmd + "\n" + output
+
+        logging.debug("Loading DDL file '%s'" % (self.ddl))
+        ## HACK
+        cmd = "mariadb -u %s -p%s -D %s < %s" % (self.user, self.passwd, self.database, self.ddl)
+        print("command" + cmd)
+        (result, output) = subprocess.getstatusoutput(cmd)
+        assert result == 0, cmd + "\n" + output
         ## IF
-        self.connStr = "DRIVER={%s};SERVER=localhost;DATABASE=%s;USER=%s;PASSWORD=%s;" % ()
+        self.connStr = "DRIVER={%s};SERVER=localhost;DATABASE=%s;USER=%s;PASSWORD=%s;" % ("MariaDB", "tpcc","tpcc","tpcc")
         self.conn = pyodbc.connect(self.connStr)
         self.cursor = self.conn.cursor()
     
     ## ----------------------------------------------
     ## loadTuples
     ## ----------------------------------------------
+    # def loadTuples(self, tableName, tuples):
+    #     if len(tuples) == 0: return
+    #     print("tuples: " + str(tuples))
+    #     p = ["?"]*len(tuples[0])
+    #     sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
+    #     print(sql)
+    #     self.cursor.executemany(sql, tuples)
+    #     self.conn.commit()
+    #     print("commit")
+    #     logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
+    #     return
     def loadTuples(self, tableName, tuples):
-        if len(tuples) == 0: return
-        
+        if len(tuples) == 0:
+            return
+        errCount = 0
+        insertCount = 0
         p = ["?"]*len(tuples[0])
         sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
-        self.cursor.executemany(sql, tuples)
-        
+        for data in tuples:
+            try:
+                # Execute the query for each tuple
+                self.cursor.execute(sql, data)
+                insertCount = insertCount + 1
+                # print("Inserted data: %s" % str(data))
+            except Exception as e:
+                # Print the SQL statement and the exception if an error occurs
+                # print(f"Error executing SQL: {sql}")
+                print(f"Exception: {e} Error executing SQL: {sql}")
+                errCount = errCount + 1
+
+        print(f"bulk data inserted {insertCount} , error occur {errCount}")
         logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
         return
+    # def loadTuples(self, tableName, tuples):
+    #     if len(tuples) == 0:
+    #         return
+
+    #     # Get the column names
+    #     # columns = ",".join(["%s" % col for col in tuples[0]])
+
+    #     # Iterate through tuples and insert them one by one
+    #     for data in tuples:
+    #         # Convert tuple values to strings
+    #         # values = ",".join(["'%s'" % str(value) for value in data])
+    #         values = ",".join(["NULL" if value is None or value == '' else "'%s'" % str(value) for value in data])
+    #         # Build the SQL query
+    #         sql = "INSERT INTO %s VALUES (%s)" % (tableName, values)
+    #         # print("sql: " + sql)
+    #         # Execute the query for each tuple
+    #         # self.cursor.execute(sql)
+    #         try:
+    #             # Execute the query for each tuple
+    #             self.cursor.execute(sql)
+    #             # print("Inserted data: %s" % str(data))
+    #         except Exception as e:
+    #             # Print the SQL statement and the exception if an error occurs
+    #             print(f"Error executing SQL: {sql}")
+    #             print(f"Exception: {e}")
+
+    #     # print("Inserted data: %s" % str(values))
+    #     try: 
+    #         self.conn.commit()
+    #     except Exception as e:
+    #         print(f"Commit Exception: {e}")
+    #     print("loaded %d data inserted for table %s" % (len(tuples), tableName))
+    #     logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
+    #     return
 
     ## ----------------------------------------------
     ## loadFinish
