@@ -180,14 +180,14 @@ class MariadbDriver(AbstractDriver):
     #     logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
     #     return
     # the executemany func of pyodbc and mariadb odbc has bug. 
-    # therefore, I did replace it to execute.
+    # therefore, I did replace it with execute func.
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0:
             return
         errCount = 0
         insertCount = 0
         p = ["?"]*len(tuples[0])
-        print(tuples[0])
+        # print(tuples[0])
         sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
         for data in tuples:
             try:
@@ -205,11 +205,11 @@ class MariadbDriver(AbstractDriver):
                 try:
                     self.cursor.execute(sql, data)
                     insertCount = insertCount + 1
-                    print(f"reexecute success: {data}")
+                    print(f"Re-Execute success with last column length 350: {data}")
                 except Exception as e:
                     print(f"Exception after truncation: {e} Error executing SQL: {sql}")
                     errCount = errCount + 1
-        print(f"bulk data inserted {insertCount} , error occur {errCount}")
+        print(f"bulk data inserted {insertCount} rows into table: {tableName}, error occur {errCount} rows")
         logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
         return
     # def loadTuples(self, tableName, tuples):
