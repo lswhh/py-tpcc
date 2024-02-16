@@ -150,15 +150,15 @@ class AltibaseDriver(AbstractDriver):
         try:
             if config["reset"]:
                 logging.debug("Drop Table DDL file '%s'" % (self.ddl))        
-                cmd = "isql -s %s -u %s -p%s -D %s < %s" % (self.server, self.user, self.passwd, self.database, "drop.sql")
-                print("command:" + cmd)
+                cmd = "isql -s %s -u %s -p %s < %s" % (self.server, self.user, self.passwd, "drop.sql")
+                print("command: " + cmd)
                 (result, output) = subprocess.getstatusoutput(cmd)
-        # assert result == 0, cmd + "\n" + output
+                assert result == 0, cmd + "\n" + output
 
             logging.debug("Loading DDL file '%s'" % (self.ddl))
             ## HACK
             cmd = "isql -s %s -u %s -p %s  < %s" % (self.server, self.user, self.passwd, self.ddl)
-            print("command" + cmd)
+            print("command: " + cmd)
             (result, output) = subprocess.getstatusoutput(cmd)
         except (Exception, AssertionError) as ex:
             logging.warn("Failed to load config: %s", ex)
