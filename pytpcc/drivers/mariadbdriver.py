@@ -331,6 +331,7 @@ class MariadbDriver(AbstractDriver):
         for item in items:
             if item is None or len(item) == 0:
                 ## TODO Abort here!
+                self.conn.rollback()
                 return
         ## FOR
         

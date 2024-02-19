@@ -53,7 +53,7 @@ TXN_QUERIES = {
     },
     "NEW_ORDER": {
         "getWarehouseTaxRate": "SELECT W_TAX FROM WAREHOUSE WHERE W_ID = ?", # w_id
-        "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = ? AND D_W_ID = ?", # d_id, w_id
+        "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = ? AND D_W_ID = ? FOR UPDATE", # d_id, w_id
         "incrementNextOrderId": "UPDATE DISTRICT SET D_NEXT_O_ID = ? WHERE D_ID = ? AND D_W_ID = ?", # d_next_o_id, d_id, w_id
         "getCustomer": "SELECT C_DISCOUNT, C_LAST, C_CREDIT FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # w_id, d_id, c_id
         "createOrder": "INSERT INTO ORDERS (O_ID, O_D_ID, O_W_ID, O_C_ID, O_ENTRY_D, O_CARRIER_ID, O_OL_CNT, O_ALL_LOCAL) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", # d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local
@@ -154,12 +154,12 @@ class AltibaseDriver(AbstractDriver):
                 print("command: " + cmd)
                 (result, output) = subprocess.getstatusoutput(cmd)
                 assert result == 0, cmd + "\n" + output
-
-            logging.debug("Loading DDL file '%s'" % (self.ddl))
-            ## HACK
-            cmd = "isql -s %s -u %s -p %s  < %s" % (self.server, self.user, self.passwd, self.ddl)
-            print("command: " + cmd)
-            (result, output) = subprocess.getstatusoutput(cmd)
+            if config["load"]:
+                logging.debug("Loading DDL file '%s'" % (self.ddl))
+                ## HACK
+                cmd = "isql -s %s -u %s -p %s  < %s" % (self.server, self.user, self.passwd, self.ddl)
+                print("command: " + cmd)
+                (result, output) = subprocess.getstatusoutput(cmd)
         except (Exception, AssertionError) as ex:
             logging.warn("Failed to load config: %s", ex)
             raise   
@@ -336,6 +336,7 @@ class AltibaseDriver(AbstractDriver):
         for item in items:
             if item is None or len(item) == 0:
                 ## TODO Abort here!
+                self.conn.rollback()
                 return
         ## FOR
         
