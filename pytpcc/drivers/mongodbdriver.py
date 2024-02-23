@@ -227,6 +227,7 @@ class MongodbDriver(AbstractDriver):
         self.retry_writes = True
         self.read_concern = "majority"
         self.write_concern = pymongo.write_concern.WriteConcern(w=1)
+        self.write_concern_str = self.write_concern.document['w']
         self.denormalize = True
         self.output = open('results.json','a')
         self.result_doc = {}

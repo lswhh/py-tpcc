@@ -226,6 +226,14 @@ if __name__ == '__main__':
     assert driverClass != None, "Failed to find '%s' class" % args['system']
     driver = driverClass(args['ddl'])
     assert driver != None, "Failed to create '%s' driver" % args['system']
+
+    reportDriver = None
+    if driverClass.__name__ != 'MongodbDriver' or driverClass.__name__ != 'AltibaseDriver':
+        print("The driver class is", driverClass.__name__)
+    else:
+        print("The driver class is MongodbDriver.")
+        reportDriver = driver
+
     if args['print_config']:
         config = driver.makeDefaultConfig()
         print(driver.formatConfig(config))
@@ -243,11 +251,12 @@ if __name__ == '__main__':
         defaultConfig = driver.makeDefaultConfig()
         config = dict([(param, defaultConfig[param][1]) for param in defaultConfig.keys()])
     config['reset'] = args['reset']
-    config['load'] = False
+    config['load'] = not args['no_load']
     config['execute'] = False
     if config['reset']:
         logging.info("Reseting database")
     config['warehouses'] = args['warehouses']
+
     driver.loadConfig(config)
     logging.info("Initializing TPC-C benchmark using %s", driver)
 
@@ -258,6 +267,7 @@ if __name__ == '__main__':
 
     ## DATA LOADER!!!
     load_time = None
+
     if not args['no_load']:
         logging.info("Loading TPC-C benchmark data using %s", (driver))
         load_start = time.time()
@@ -288,7 +298,7 @@ if __name__ == '__main__':
         assert results, "No results from execution for %d client!" % args['clients']
         logging.info("Final Results")
         logging.info("Threads: %d", args['clients'])
-        logging.info(results.show(load_time, driver, args['clients']))
+        logging.info(results.show(load_time, reportDriver, args['clients']))
     ## IF
 
 ## MAIN

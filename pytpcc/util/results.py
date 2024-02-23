@@ -223,7 +223,7 @@ class Results:
             result_doc['batch_writes'] = driver.batch_writes
             result_doc['find_and_modify'] = driver.find_and_modify
             result_doc['read_preference'] = driver.read_preference
-            result_doc['write_concern'] = driver.write_concern.document['w']
+            result_doc['write_concern'] = driver.write_concern_str
             result_doc['causal'] = driver.causal_consistency
             result_doc['all_in_one_txn'] = driver.all_in_one_txn
             result_doc['retry_writes'] = driver.retry_writes
@@ -245,11 +245,11 @@ class Results:
                 u"%6.2f" % (1000*lat[int(samples/100.0*90)]), u"%6.2f" % (1000*lat[int(samples/100.0*95)]),
                 u"%6.2f" % (1000*lat[int(samples/100.0*99)]),
                 u"%6.2f" % (1000.0*lat[-1]),
-                str(driver.write_concern), ('false', 'true')[driver.causal_consistency],
+                str(driver.write_concern_str), ('false', 'true')[driver.causal_consistency],
                 ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],total_cnt,total_aborts)
         if driver:
             driver.save_result(result_doc)
         print(result_doc)
-        # return ret.encode('ascii', "ignore")
+
         return ret
 ## CLASS

@@ -120,8 +120,30 @@ class AltibaseDriver(AbstractDriver):
         self.conn = None
         self.cursor = None
         self.connStr = None
-        self.denormalize = True
-    
+        self.warehouses = 4
+        ######################################################
+        # for compatablity, this value is not used in altibase.
+        self.no_transactions = False
+        self.find_and_modify = False
+        self.read_preference = "n/a"
+        self.client = None
+        self.executed = False
+        self.w_orders = {}
+        # things that are not better can't be set in config
+        self.batch_writes = False
+        self.agg = False
+        self.all_in_one_txn = False
+        # initialize
+        self.causal_consistency = False
+        self.secondary_reads = False
+        self.retry_writes = False
+        self.read_concern = "n/a"
+        self.write_concern_str = "n/a"
+        self.denormalize = False
+        self.output = open('results.json','a')
+        self.result_doc = {}
+        self.shards = 1
+        ######################################################
     ## ----------------------------------------------
     ## makeDefaultConfig
     ## ----------------------------------------------
@@ -135,35 +157,40 @@ class AltibaseDriver(AbstractDriver):
         for key in AltibaseDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
 
-
+        self.warehouses = config['warehouses']
         self.driver_name = str(config["driver"])
         self.server = str(config["server"])
         self.user = str(config["user"])
         self.passwd = str(config["password"])
         self.ddl = "altibase-tpcc.sql"
 
-        # if config["reset"]:
-        #     logging.debug("Deleting database '%s'" % self.database)
-        #     os.unlink(self.database)
-        
-        # if os.path.exists(self.database) == False:
         try:
             if config["reset"]:
                 logging.debug("Drop Table DDL file '%s'" % (self.ddl))        
                 cmd = "isql -s %s -u %s -p %s < %s" % (self.server, self.user, self.passwd, "drop.sql")
                 print("command: " + cmd)
                 (result, output) = subprocess.getstatusoutput(cmd)
-                assert result == 0, cmd + "\n" + output
-            if config["load"]:
+                if result != 0:
+                    logging.debug(cmd + "\n" + output)
+                    print(cmd + "\n" + output)
+
                 logging.debug("Loading DDL file '%s'" % (self.ddl))
                 ## HACK
                 cmd = "isql -s %s -u %s -p %s  < %s" % (self.server, self.user, self.passwd, self.ddl)
                 print("command: " + cmd)
                 (result, output) = subprocess.getstatusoutput(cmd)
+                assert result == 0, cmd + "\n" + output
+            elif config["load"]: #if load is not true then tables already exists
+                logging.debug("Loading DDL file '%s'" % (self.ddl))
+                ## HACK
+                cmd = "isql -s %s -u %s -p %s  < %s" % (self.server, self.user, self.passwd, self.ddl)
+                print("command: " + cmd)
+                (result, output) = subprocess.getstatusoutput(cmd)
+                assert result == 0, cmd + "\n" + output
         except (Exception, AssertionError) as ex:
             logging.warn("Failed to load config: %s", ex)
             raise   
-        # assert result == 0, cmd + "\n" + output
+
         ## IF
         self.connStr = "DSN=%s;UID=%s;PWD=%s;" % (self.driver_name, self.user,self.passwd)
         print("connection string: %s" %(self.connStr))
@@ -186,6 +213,7 @@ class AltibaseDriver(AbstractDriver):
     #     return
     # the executemany func of pyodbc and mariadb odbc has bug. 
     # therefore, I did replace it with execute func.
+    # Therefore, data load times are not comparable.
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0:
             return
@@ -203,55 +231,21 @@ class AltibaseDriver(AbstractDriver):
             except Exception as e:
                 # Print the SQL statement and the exception if an error occurs
                 # print(f"Error executing SQL: {sql}")
-                print(f"Exception: {e} Error executing SQL: {sql}")
+                logging.debug(f"Exception: {e} Error executing SQL: {sql}")
                 # If an error occurs, truncate the last element of data to 100 characters and retry
                 data = list(data)
                 data[len(data)-1] = data[len(data)-1][:350]
                 try:
                     self.cursor.execute(sql, data)
                     insertCount = insertCount + 1
-                    print(f"Re-Execute success with last column length 350: {data}")
+                    logging.debug(f"Re-Execute success with last column length 350: {data}")
                 except Exception as e:
+                    logging.debug(f"Exception after truncation: {e} Error executing SQL: {sql}")
                     print(f"Exception after truncation: {e} Error executing SQL: {sql}")
                     errCount = errCount + 1
-        print(f"bulk data inserted {insertCount} rows into table: {tableName}, error occur {errCount} rows")
         logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
         return
-    # def loadTuples(self, tableName, tuples):
-    #     if len(tuples) == 0:
-    #         return
-
-    #     # Get the column names
-    #     # columns = ",".join(["%s" % col for col in tuples[0]])
-
-    #     # Iterate through tuples and insert them one by one
-    #     for data in tuples:
-    #         # Convert tuple values to strings
-    #         # values = ",".join(["'%s'" % str(value) for value in data])
-    #         values = ",".join(["NULL" if value is None or value == '' else "'%s'" % str(value) for value in data])
-    #         # Build the SQL query
-    #         sql = "INSERT INTO %s VALUES (%s)" % (tableName, values)
-    #         # print("sql: " + sql)
-    #         # Execute the query for each tuple
-    #         # self.cursor.execute(sql)
-    #         try:
-    #             # Execute the query for each tuple
-    #             self.cursor.execute(sql)
-    #             # print("Inserted data: %s" % str(data))
-    #         except Exception as e:
-    #             # Print the SQL statement and the exception if an error occurs
-    #             print(f"Error executing SQL: {sql}")
-    #             print(f"Exception: {e}")
-
-    #     # print("Inserted data: %s" % str(values))
-    #     try: 
-    #         self.conn.commit()
-    #     except Exception as e:
-    #         print(f"Commit Exception: {e}")
-    #     print("loaded %d data inserted for table %s" % (len(tuples), tableName))
-    #     logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
-    #     return
-
+ 
     ## ----------------------------------------------
     ## loadFinish
     ## ----------------------------------------------
@@ -302,7 +296,8 @@ class AltibaseDriver(AbstractDriver):
         ## FOR
 
         self.conn.commit()
-        return result
+        
+        return (result, 0)
 
     ## ----------------------------------------------
     ## doNewOrder
@@ -337,7 +332,7 @@ class AltibaseDriver(AbstractDriver):
             if item is None or len(item) == 0:
                 ## TODO Abort here!
                 self.conn.rollback()
-                return
+                return (None, 0)
         ## FOR
         
         ## ----------------
@@ -432,7 +427,7 @@ class AltibaseDriver(AbstractDriver):
         ## Pack up values the client is missing (see TPC-C 2.4.3.5)
         misc = [ (w_tax, d_tax, d_next_o_id, total) ]
         
-        return [ customer_info, misc, item_data ]
+        return ( [ customer_info, misc, item_data ], 0 )
 
     ## ----------------------------------------------
     ## doOrderStatus
@@ -472,7 +467,7 @@ class AltibaseDriver(AbstractDriver):
             orderLines = [ ]
 
         self.conn.commit()
-        return [ customer, order, orderLines ]
+        return ( [ customer, order, orderLines ], 0 )
 
     ## ----------------------------------------------
     ## doPayment
@@ -545,7 +540,7 @@ class AltibaseDriver(AbstractDriver):
         # H_AMOUNT, and H_DATE.
 
         # Hand back all the warehouse, district, and customer data
-        return [ warehouse, district, customer ]
+        return ( [ warehouse, district, customer ], 0 )
         
     ## ----------------------------------------------
     ## doStockLevel
@@ -567,6 +562,9 @@ class AltibaseDriver(AbstractDriver):
         
         self.conn.commit()
         
-        return int(result[0])
-        
+        return ( int(result[0]), 0 )
+
+    def save_result(self, result_doc):
+        self.result_doc.update(result_doc)
+       
 ## CLASS
