@@ -121,6 +121,7 @@ class AltibaseDriver(AbstractDriver):
         self.cursor = None
         self.connStr = None
         self.warehouses = 4
+        self.ddl = "altibase-tpcc.sql"
         ######################################################
         # for compatablity, this value is not used in altibase.
         self.no_transactions = False
@@ -220,17 +221,16 @@ class AltibaseDriver(AbstractDriver):
         errCount = 0
         insertCount = 0
         p = ["?"]*len(tuples[0])
-        # print(tuples[0])
         sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
+
         for data in tuples:
             try:
                 # Execute the query for each tuple
                 self.cursor.execute(sql, data)
                 insertCount = insertCount + 1
-                # print("Inserted data: %s" % str(data))
+
             except Exception as e:
                 # Print the SQL statement and the exception if an error occurs
-                # print(f"Error executing SQL: {sql}")
                 logging.debug(f"Exception: {e} Error executing SQL: {sql}")
                 # If an error occurs, truncate the last element of data to 100 characters and retry
                 data = list(data)
@@ -241,6 +241,7 @@ class AltibaseDriver(AbstractDriver):
                     logging.debug(f"Re-Execute success with last column length 350: {data}")
                 except Exception as e:
                     logging.debug(f"Exception after truncation: {e} Error executing SQL: {sql}")
+                    # Print it out for the user to see.
                     print(f"Exception after truncation: {e} Error executing SQL: {sql}")
                     errCount = errCount + 1
         logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))

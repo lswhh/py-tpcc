@@ -53,7 +53,7 @@ TXN_QUERIES = {
     },
     "NEW_ORDER": {
         "getWarehouseTaxRate": "SELECT W_TAX FROM WAREHOUSE WHERE W_ID = ?", # w_id
-        "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = ? AND D_W_ID = ?", # d_id, w_id
+        "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = ? AND D_W_ID = ? FOR UPDATE", # d_id, w_id
         "incrementNextOrderId": "UPDATE DISTRICT SET D_NEXT_O_ID = ? WHERE D_ID = ? AND D_W_ID = ?", # d_next_o_id, d_id, w_id
         "getCustomer": "SELECT C_DISCOUNT, C_LAST, C_CREDIT FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # w_id, d_id, c_id
         "createOrder": "INSERT INTO ORDERS (O_ID, O_D_ID, O_W_ID, O_C_ID, O_ENTRY_D, O_CARRIER_ID, O_OL_CNT, O_ALL_LOCAL) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", # d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local
@@ -181,6 +181,7 @@ class MariadbDriver(AbstractDriver):
     #     return
     # the executemany func of pyodbc and mariadb odbc has bug. 
     # therefore, I did replace it with execute func.
+    # Therefore, data load times are not comparable.
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0:
             return
@@ -198,55 +199,21 @@ class MariadbDriver(AbstractDriver):
             except Exception as e:
                 # Print the SQL statement and the exception if an error occurs
                 # print(f"Error executing SQL: {sql}")
-                print(f"Exception: {e} Error executing SQL: {sql}")
+                logging.debug(f"Exception: {e} Error executing SQL: {sql}")
                 # If an error occurs, truncate the last element of data to 100 characters and retry
                 data = list(data)
                 data[len(data)-1] = data[len(data)-1][:350]
                 try:
                     self.cursor.execute(sql, data)
                     insertCount = insertCount + 1
-                    print(f"Re-Execute success with last column length 350: {data}")
+                    logging.debug(f"Re-Execute success with last column length 350: {data}")
                 except Exception as e:
+                    logging.debug(f"Exception after truncation: {e} Error executing SQL: {sql}")
                     print(f"Exception after truncation: {e} Error executing SQL: {sql}")
                     errCount = errCount + 1
-        print(f"bulk data inserted {insertCount} rows into table: {tableName}, error occur {errCount} rows")
         logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
         return
-    # def loadTuples(self, tableName, tuples):
-    #     if len(tuples) == 0:
-    #         return
-
-    #     # Get the column names
-    #     # columns = ",".join(["%s" % col for col in tuples[0]])
-
-    #     # Iterate through tuples and insert them one by one
-    #     for data in tuples:
-    #         # Convert tuple values to strings
-    #         # values = ",".join(["'%s'" % str(value) for value in data])
-    #         values = ",".join(["NULL" if value is None or value == '' else "'%s'" % str(value) for value in data])
-    #         # Build the SQL query
-    #         sql = "INSERT INTO %s VALUES (%s)" % (tableName, values)
-    #         # print("sql: " + sql)
-    #         # Execute the query for each tuple
-    #         # self.cursor.execute(sql)
-    #         try:
-    #             # Execute the query for each tuple
-    #             self.cursor.execute(sql)
-    #             # print("Inserted data: %s" % str(data))
-    #         except Exception as e:
-    #             # Print the SQL statement and the exception if an error occurs
-    #             print(f"Error executing SQL: {sql}")
-    #             print(f"Exception: {e}")
-
-    #     # print("Inserted data: %s" % str(values))
-    #     try: 
-    #         self.conn.commit()
-    #     except Exception as e:
-    #         print(f"Commit Exception: {e}")
-    #     print("loaded %d data inserted for table %s" % (len(tuples), tableName))
-    #     logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
-    #     return
-
+ 
     ## ----------------------------------------------
     ## loadFinish
     ## ----------------------------------------------
@@ -297,7 +264,8 @@ class MariadbDriver(AbstractDriver):
         ## FOR
 
         self.conn.commit()
-        return result
+        
+        return (result, 0)
 
     ## ----------------------------------------------
     ## doNewOrder
@@ -332,7 +300,7 @@ class MariadbDriver(AbstractDriver):
             if item is None or len(item) == 0:
                 ## TODO Abort here!
                 self.conn.rollback()
-                return
+                return (None, 0)
         ## FOR
         
         ## ----------------
@@ -427,7 +395,7 @@ class MariadbDriver(AbstractDriver):
         ## Pack up values the client is missing (see TPC-C 2.4.3.5)
         misc = [ (w_tax, d_tax, d_next_o_id, total) ]
         
-        return [ customer_info, misc, item_data ]
+        return ( [ customer_info, misc, item_data ], 0 )
 
     ## ----------------------------------------------
     ## doOrderStatus
@@ -467,7 +435,7 @@ class MariadbDriver(AbstractDriver):
             orderLines = [ ]
 
         self.conn.commit()
-        return [ customer, order, orderLines ]
+        return ( [ customer, order, orderLines ], 0 )
 
     ## ----------------------------------------------
     ## doPayment
@@ -540,7 +508,7 @@ class MariadbDriver(AbstractDriver):
         # H_AMOUNT, and H_DATE.
 
         # Hand back all the warehouse, district, and customer data
-        return [ warehouse, district, customer ]
+        return ( [ warehouse, district, customer ], 0 )
         
     ## ----------------------------------------------
     ## doStockLevel
@@ -562,6 +530,6 @@ class MariadbDriver(AbstractDriver):
         
         self.conn.commit()
         
-        return int(result[0])
+        return ( int(result[0]), 0 )
         
 ## CLASS
