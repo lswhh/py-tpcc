@@ -1,8 +1,7 @@
 import os, redis, time, sys
 from datetime import datetime
 from pprint import pprint,pformat
-from abstractdriver import *
-
+from .abstractdriver import AbstractDriver
 #----------------------------------------------------------------------------
 # Redis TPC-C Driver
 #
@@ -1381,6 +1380,7 @@ class RedisDriver(AbstractDriver):
 	# @param string table name
 	# @param list of tuples corresponding to table schema
 	#------------------------------------------------------------------------
+
 	def loadTuples(self, tableName, tuples) :
 		
 		# Instantiate Column-mapping
@@ -1389,6 +1389,15 @@ class RedisDriver(AbstractDriver):
 			print(tableName, end=" ")
 			
 		for record in tuples :
+			# Convert datetime.datetime to string (ISO 8601 format)
+			record = list(record)  # Convert tuple to list to modify it
+			for i, item in enumerate(record):
+            # Check for datetime.datetime instance and convert to string (ISO 8601 format)
+				if isinstance(item, datetime):
+					record[i] = item.isoformat()
+				elif item is None:
+					record[i] = ""
+
 			# Determine at which node to store this data
 			node = 'ALL'
 			if tableName == 'WAREHOUSE' :

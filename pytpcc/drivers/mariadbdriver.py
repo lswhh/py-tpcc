@@ -119,7 +119,29 @@ class MariadbDriver(AbstractDriver):
         self.cursor = None
         self.connStr = None
         self.denormalize = True
-    
+            ######################################################
+        # for compatablity, this value is not used in altibase.
+        self.no_transactions = False
+        self.find_and_modify = False
+        self.read_preference = "n/a"
+        self.client = None
+        self.executed = False
+        self.w_orders = {}
+        # things that are not better can't be set in config
+        self.batch_writes = False
+        self.agg = False
+        self.all_in_one_txn = False
+        # initialize
+        self.causal_consistency = False
+        self.secondary_reads = False
+        self.retry_writes = False
+        self.read_concern = "n/a"
+        self.write_concern_str = "n/a"
+        self.denormalize = False
+        self.output = open('results.json','a')
+        self.result_doc = {}
+        self.shards = 1
+        ######################################################
     ## ----------------------------------------------
     ## makeDefaultConfig
     ## ----------------------------------------------
@@ -147,14 +169,14 @@ class MariadbDriver(AbstractDriver):
             if config["reset"]:
                 logging.debug("Drop Table DDL file '%s'" % (self.ddl))        
                 cmd = "mariadb -u %s -p%s -D %s < %s" % (self.user, self.passwd, self.database, "maria-drop.sql")
-                print("command" + cmd)
+                print("command: " + cmd)
                 (result, output) = subprocess.getstatusoutput(cmd)
         # assert result == 0, cmd + "\n" + output
 
             logging.debug("Loading DDL file '%s'" % (self.ddl))
             ## HACK
             cmd = "mariadb -u %s -p%s -D %s < %s" % (self.user, self.passwd, self.database, self.ddl)
-            print("command" + cmd)
+            print("command: " + cmd)
             (result, output) = subprocess.getstatusoutput(cmd)
         except (Exception, AssertionError) as ex:
             logging.warn("Failed to load config: %s", ex)
@@ -188,17 +210,16 @@ class MariadbDriver(AbstractDriver):
         errCount = 0
         insertCount = 0
         p = ["?"]*len(tuples[0])
-        # print(tuples[0])
         sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
+
         for data in tuples:
             try:
                 # Execute the query for each tuple
                 self.cursor.execute(sql, data)
                 insertCount = insertCount + 1
-                # print("Inserted data: %s" % str(data))
+
             except Exception as e:
                 # Print the SQL statement and the exception if an error occurs
-                # print(f"Error executing SQL: {sql}")
                 logging.debug(f"Exception: {e} Error executing SQL: {sql}")
                 # If an error occurs, truncate the last element of data to 100 characters and retry
                 data = list(data)
@@ -209,6 +230,7 @@ class MariadbDriver(AbstractDriver):
                     logging.debug(f"Re-Execute success with last column length 350: {data}")
                 except Exception as e:
                     logging.debug(f"Exception after truncation: {e} Error executing SQL: {sql}")
+                    # Print it out for the user to see.
                     print(f"Exception after truncation: {e} Error executing SQL: {sql}")
                     errCount = errCount + 1
         logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
@@ -531,5 +553,8 @@ class MariadbDriver(AbstractDriver):
         self.conn.commit()
         
         return ( int(result[0]), 0 )
-        
+
+    def save_result(self, result_doc):
+        self.result_doc.update(result_doc)
+       
 ## CLASS
