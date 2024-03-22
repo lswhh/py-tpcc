@@ -2,6 +2,7 @@ import os, redis, time, sys
 from datetime import datetime
 from pprint import pprint,pformat
 from .abstractdriver import AbstractDriver
+import constants
 #----------------------------------------------------------------------------
 # Redis TPC-C Driver
 #
@@ -105,6 +106,7 @@ class RedisDriver(AbstractDriver):
 					'C_STREET_1',
 					'C_STREET_2',
 					'C_CITY',
+					'C_STATE',
 					'C_ZIP',
 					'C_PHONE',
 					'C_SINCE',
@@ -128,17 +130,18 @@ class RedisDriver(AbstractDriver):
 					'C_STREET_1'     : 6,
 					'C_STREET_2'     : 7,
 					'C_CITY'         : 8,
-					'C_ZIP'          : 9,
-					'C_PHONE'        : 10,
-					'C_SINCE'        : 11,
-					'C_CREDIT'       : 12,
-					'C_CREDIT_LIM'   : 13,
-					'C_DISCOUNT'     : 14,
-					'C_BALANCE'      : 15,
-					'C_YTD_PAYMENT'  : 16,
-					'C_PAYMENT_CNT'  : 17,
-					'C_DELIVERY_CNT' : 18,
-					'C_DATA'         : 19,
+					'C_STATE'		 : 9,
+					'C_ZIP'          : 10,
+					'C_PHONE'        : 11,
+					'C_SINCE'        : 12,
+					'C_CREDIT'       : 13,
+					'C_CREDIT_LIM'   : 14,
+					'C_DISCOUNT'     : 15,
+					'C_BALANCE'      : 16,
+					'C_YTD_PAYMENT'  : 17,
+					'C_PAYMENT_CNT'  : 18,
+					'C_DELIVERY_CNT' : 19,
+					'C_DATA'         : 20,
 				},
 			'primary_key' : ['C_W_ID', 'C_D_ID', 'C_ID'],
 			'indexes' : [ ],
@@ -528,7 +531,7 @@ class RedisDriver(AbstractDriver):
 		if self.debug['delivery'] != 'None' :
 			print('TXN DELIVERY:', time.time() - tt)
 			 
-		return result
+		return (result, 0)
 	# End doDelivery()
 	
 	#------------------------------------------------------------------------
@@ -556,7 +559,7 @@ class RedisDriver(AbstractDriver):
 		w_id = params["w_id"]
 		d_id = params["d_id"]
 		c_id = params["c_id"]
-		o_entry_d = params["o_entry_d"]
+		o_entry_d = params["o_entry_d"].isoformat()
 		i_ids = params["i_ids"]
 		i_w_ids = params["i_w_ids"]
 		i_qtys = params["i_qtys"]
@@ -598,7 +601,7 @@ class RedisDriver(AbstractDriver):
 		## Note that this will happen with 1% of transactions on purpose.
 		for item in items :
 			if len(item) == 0 :
-				return
+				return (None, 0)
 		
 		#------------------------------------------------------------
 		# Collect Information from WAREHOUSE, DISTRICT, and CUSTOMER
@@ -671,7 +674,7 @@ class RedisDriver(AbstractDriver):
 				'O_ENTRY_D'    : o_entry_d,
 				'O_CARRIER_ID' : o_carrier_id,
 				'O_OL_CNT'     : ol_cnt,
-				'O_ALL_LOCAL'  : all_local
+				'O_ALL_LOCAL'  : str(all_local)
 			}
 		)
 		
@@ -837,7 +840,7 @@ class RedisDriver(AbstractDriver):
 		
 		if self.debug['new-order'] != 'None' :
 			print('TXN NEW ORDER:', time.time() - tt)
-		return [ customer_info, misc, item_data ]
+		return ([ customer_info, misc, item_data ], 0)
 	
 	#------------------------------------------------------------------------
 	# Execute TPC-C Do Order Status transaction
@@ -911,7 +914,7 @@ class RedisDriver(AbstractDriver):
 					
 			namecnt = len(customers)
 			index = (namecnt - 1)/2
-			customer = customers[index]
+			customer = customers[int(index)]
 			customer_key = self.safeKey([
 				customer['C_W_ID'], 
 				customer['C_D_ID'], 
@@ -980,7 +983,7 @@ class RedisDriver(AbstractDriver):
 		if self.debug['order-status'] != 'None' :
 			print('TXN ORDER STATUS:', time.time() - tt)
 			
-		return [ customer, order, orderLines ]
+		return ([ customer, order, orderLines ], 0)
 	
 	#------------------------------------------------------------------------
 	# Execute TPC-C Do Payement Transaction
@@ -1058,7 +1061,7 @@ class RedisDriver(AbstractDriver):
 			assert len(customers) > 0
 					
 			namecnt = len(customers)
-			index = (namecnt - 1)/2
+			index = int((namecnt - 1)/2)
 			customer = customers[index]
 			customer_key = self.safeKey([
 				customer['C_W_ID'], 
@@ -1188,7 +1191,7 @@ class RedisDriver(AbstractDriver):
 				'H_C_W_ID' : c_w_id,
 				'H_D_ID'   : d_id,
 				'H_W_ID'   : w_id,
-				'H_DATE'   : h_date,
+				'H_DATE'   : h_date.isoformat(),
 				'H_AMOUNT' : h_amount,
 				'H_DATA'   : h_data,
 			}
@@ -1214,7 +1217,7 @@ class RedisDriver(AbstractDriver):
 		if self.debug['payment'] != 'None' :
 			print('TXN PAYMENT:', time.time() - tt)
 		
-		return [ warehouse, district, customer ]
+		return ([ warehouse, district, customer ], 0)
 	
 	#------------------------------------------------------------------------
 	# Execute TPC-C Stock Level Transaction
@@ -1282,7 +1285,7 @@ class RedisDriver(AbstractDriver):
 		if self.debug['stock-level'] != 'None' :
 			print('TXN STOCK LEVEL:', time.time() - tt)
 			
-		return len(stock_counts)
+		return (len(stock_counts), 0)
 		
 	#------------------------------------------------------------------------
 	# Load the specified configuration for Redis TPC-C run
@@ -1300,7 +1303,7 @@ class RedisDriver(AbstractDriver):
 			db, port_str = host.split(':')
 			port = int(port_str)
 			print('Connectiong to host %s on port %s' % (db, port))
-			self.databases.append(redis.Redis(host=db, port=port, db=0))
+			self.databases.append(redis.Redis(host=db, port=port, db=0, decode_responses=True))
 			print(str(self.databases[c_num].ping()))
 			self.r_pipes.append(self.databases[c_num].pipeline(False))
 			self.r_sizes.append(0)
@@ -1308,7 +1311,7 @@ class RedisDriver(AbstractDriver):
 			self.w_sizes.append(0)
 			if (first) :
 				first = False
-				self.metadata = redis.Redis(host=db, port=port, db=0)
+				self.metadata = redis.Redis(host=db, port=port, db=0, decode_responses=True)
 			c_num += 1
 			self.db_count += 1
 		
@@ -1392,11 +1395,13 @@ class RedisDriver(AbstractDriver):
 			# Convert datetime.datetime to string (ISO 8601 format)
 			record = list(record)  # Convert tuple to list to modify it
 			for i, item in enumerate(record):
-            # Check for datetime.datetime instance and convert to string (ISO 8601 format)
+				# Check for datetime.datetime instance and convert to string (ISO 8601 format)
 				if isinstance(item, datetime):
 					record[i] = item.isoformat()
 				elif item is None:
-					record[i] = ""
+					record[i] = 'NULL_VALUE'
+				else:
+					pass
 
 			# Determine at which node to store this data
 			node = 'ALL'
@@ -1456,17 +1461,18 @@ class RedisDriver(AbstractDriver):
 						'C_STREET_1'     : record[6],
 						'C_STREET_2'     : record[7],
 						'C_CITY'         : record[8],
-						'C_ZIP'          : record[9],
-						'C_PHONE'        : record[10],
-						'C_SINCE'        : record[11],
-						'C_CREDIT'       : record[12],
-						'C_CREDIT_LIM'   : record[13],
-						'C_DISCOUNT'     : record[14],
-						'C_BALANCE'      : record[15],
-						'C_YTD_PAYMENT'  : record[16],
-						'C_PAYMENT_CNT'  : record[17],
-						'C_DELIVERY_CNT' : record[18],
-						'C_DATA'         : record[19],
+						'C_STATE'        : record[9],
+						'C_ZIP'          : record[10],
+						'C_PHONE'        : record[11],
+						'C_SINCE'        : record[12],
+						'C_CREDIT'       : record[13],
+						'C_CREDIT_LIM'   : record[14],
+						'C_DISCOUNT'     : record[15],
+						'C_BALANCE'      : record[16],
+						'C_YTD_PAYMENT'  : record[17],
+						'C_PAYMENT_CNT'  : record[18],
+						'C_DELIVERY_CNT' : record[19],
+                        'C_DATA'         : record[20]
 					}
 				)
 				
@@ -1477,6 +1483,10 @@ class RedisDriver(AbstractDriver):
 					key
 				)
 				self.w_sizes[node] += 3
+				try:
+					self.w_pipes[node].execute()
+				except:
+					print("test")
 			elif tableName == 'HISTORY' : 
 				node = self.shard(record[column_map['H_W_ID']])
 				key = self.safeKey([self.next_scores['HISTORY']])
@@ -1605,7 +1615,7 @@ class RedisDriver(AbstractDriver):
 					key
 				)
 				self.w_sizes[node] += 3
-			elif tableName == 'ITEMS' :
+			elif tableName == 'ITEM' :
 				key = self.safeKey([record[0]]);
 				pi = 0
 				for pipe in self.w_pipes :
