@@ -32,8 +32,6 @@
 from __future__ import with_statement
 
 import os
-# import sqlite3
-import pyodbc
 import CUBRIDdb
 import logging
 import subprocess
