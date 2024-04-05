@@ -42,57 +42,57 @@ from .abstractdriver import AbstractDriver
 
 TXN_QUERIES = {
     "DELIVERY": {
-        "getNewOrder": "SELECT NO_O_ID FROM NEW_ORDER WHERE NO_D_ID = ? AND NO_W_ID = ? AND NO_O_ID > -1 LIMIT 1", #
-        "deleteNewOrder": "DELETE FROM NEW_ORDER WHERE NO_D_ID = ? AND NO_W_ID = ? AND NO_O_ID = ?", # d_id, w_id, no_o_id
-        "getCId": "SELECT O_C_ID FROM ORDERS WHERE O_ID = ? AND O_D_ID = ? AND O_W_ID = ?", # no_o_id, d_id, w_id
-        "updateOrders": "UPDATE ORDERS SET O_CARRIER_ID = ? WHERE O_ID = ? AND O_D_ID = ? AND O_W_ID = ?", # o_carrier_id, no_o_id, d_id, w_id
-        "updateOrderLine": "UPDATE ORDER_LINE SET OL_DELIVERY_D = ? WHERE OL_O_ID = ? AND OL_D_ID = ? AND OL_W_ID = ?", # o_entry_d, no_o_id, d_id, w_id
-        "sumOLAmount": "SELECT SUM(OL_AMOUNT) FROM ORDER_LINE WHERE OL_O_ID = ? AND OL_D_ID = ? AND OL_W_ID = ?", # no_o_id, d_id, w_id
-        "updateCustomer": "UPDATE CUSTOMER SET C_BALANCE = C_BALANCE + ? WHERE C_ID = ? AND C_D_ID = ? AND C_W_ID = ?", # ol_total, c_id, d_id, w_id
+        "getNewOrder": "SELECT NO_O_ID FROM NEW_ORDER WHERE NO_D_ID = :1 AND NO_W_ID = :2 AND NO_O_ID > -1 AND ROWNUM <= 1", #
+        "deleteNewOrder": "DELETE FROM NEW_ORDER WHERE NO_D_ID = :1 AND NO_W_ID = :2 AND NO_O_ID = :3", # d_id, w_id, no_o_id
+        "getCId": "SELECT O_C_ID FROM ORDERS WHERE O_ID = :1 AND O_D_ID = :2 AND O_W_ID = :3", # no_o_id, d_id, w_id
+        "updateOrders": "UPDATE ORDERS SET O_CARRIER_ID = :1 WHERE O_ID = :2 AND O_D_ID = :3 AND O_W_ID = :4", # o_carrier_id, no_o_id, d_id, w_id
+        "updateOrderLine": "UPDATE ORDER_LINE SET OL_DELIVERY_D = :1 WHERE OL_O_ID = :2 AND OL_D_ID = :3 AND OL_W_ID = :4", # o_entry_d, no_o_id, d_id, w_id
+        "sumOLAmount": "SELECT SUM(OL_AMOUNT) FROM ORDER_LINE WHERE OL_O_ID = :1 AND OL_D_ID = :2 AND OL_W_ID = :3", # no_o_id, d_id, w_id
+        "updateCustomer": "UPDATE CUSTOMER SET C_BALANCE = C_BALANCE + :1 WHERE C_ID = :2 AND C_D_ID = :3 AND C_W_ID = :4", # ol_total, c_id, d_id, w_id
     },
     "NEW_ORDER": {
-        "getWarehouseTaxRate": "SELECT W_TAX FROM WAREHOUSE WHERE W_ID = ?", # w_id
-        "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = ? AND D_W_ID = ? FOR UPDATE", # d_id, w_id
-        "incrementNextOrderId": "UPDATE DISTRICT SET D_NEXT_O_ID = ? WHERE D_ID = ? AND D_W_ID = ?", # d_next_o_id, d_id, w_id
-        "getCustomer": "SELECT C_DISCOUNT, C_LAST, C_CREDIT FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # w_id, d_id, c_id
-        "createOrder": "INSERT INTO ORDERS (O_ID, O_D_ID, O_W_ID, O_C_ID, O_ENTRY_D, O_CARRIER_ID, O_OL_CNT, O_ALL_LOCAL) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", # d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local
-        "createNewOrder": "INSERT INTO NEW_ORDER (NO_O_ID, NO_D_ID, NO_W_ID) VALUES (?, ?, ?)", # o_id, d_id, w_id
-        "getItemInfo": "SELECT I_PRICE, I_NAME, I_DATA FROM ITEM WHERE I_ID = ?", # ol_i_id
-        "getStockInfo": "SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DIST_%02d FROM STOCK WHERE S_I_ID = ? AND S_W_ID = ?", # d_id, ol_i_id, ol_supply_w_id
-        "updateStock": "UPDATE STOCK SET S_QUANTITY = ?, S_YTD = ?, S_ORDER_CNT = ?, S_REMOTE_CNT = ? WHERE S_I_ID = ? AND S_W_ID = ?", # s_quantity, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id
-        "createOrderLine": "INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", # o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info        
+        "getWarehouseTaxRate": "SELECT W_TAX FROM WAREHOUSE WHERE W_ID = :1", # w_id
+        "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = :1 AND D_W_ID = :2 FOR UPDATE", # d_id, w_id
+        "incrementNextOrderId": "UPDATE DISTRICT SET D_NEXT_O_ID = :1 WHERE D_ID = :2 AND D_W_ID = :3", # d_next_o_id, d_id, w_id
+        "getCustomer": "SELECT C_DISCOUNT, C_LAST, C_CREDIT FROM CUSTOMER WHERE C_W_ID = :1 AND C_D_ID = :2 AND C_ID = :3", # w_id, d_id, c_id
+        "createOrder": "INSERT INTO ORDERS (O_ID, O_D_ID, O_W_ID, O_C_ID, O_ENTRY_D, O_CARRIER_ID, O_OL_CNT, O_ALL_LOCAL) VALUES (:1, :2, :3, :4, :5, :6, :7, :8)", # d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local
+        "createNewOrder": "INSERT INTO NEW_ORDER (NO_O_ID, NO_D_ID, NO_W_ID) VALUES (:1, :2, :3)", # o_id, d_id, w_id
+        "getItemInfo": "SELECT I_PRICE, I_NAME, I_DATA FROM ITEM WHERE I_ID = :1", # ol_i_id
+        "getStockInfo": "SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DIST_%02d FROM STOCK WHERE S_I_ID = :1 AND S_W_ID = :2", # d_id, ol_i_id, ol_supply_w_id
+        "updateStock": "UPDATE STOCK SET S_QUANTITY = :1, S_YTD = :2, S_ORDER_CNT = :3, S_REMOTE_CNT = :4 WHERE S_I_ID = :5 AND S_W_ID = :6", # s_quantity, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id
+        "createOrderLine": "INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO) VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10)", # o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info        
     },
     
     "ORDER_STATUS": {
-        "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # w_id, d_id, c_id
-        "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_LAST = ? ORDER BY C_FIRST", # w_id, d_id, c_last
-        "getLastOrder": "SELECT O_ID, O_CARRIER_ID, O_ENTRY_D FROM ORDERS WHERE O_W_ID = ? AND O_D_ID = ? AND O_C_ID = ? ORDER BY O_ID DESC LIMIT 1", # w_id, d_id, c_id
-        "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = ? AND OL_D_ID = ? AND OL_O_ID = ?", # w_id, d_id, o_id        
+        "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = :1 AND C_D_ID = :2 AND C_ID = :3", # w_id, d_id, c_id
+        "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = :1 AND C_D_ID = :2 AND C_LAST = :3 ORDER BY C_FIRST", # w_id, d_id, c_last
+        "getLastOrder": "SELECT O_ID, O_CARRIER_ID, O_ENTRY_D FROM ( SELECT O_ID, O_CARRIER_ID, O_ENTRY_D FROM ORDERS WHERE O_W_ID = :1 AND O_D_ID = :2 AND O_C_ID = :3 ORDER BY O_ID DESC) WHERE ROWNUM <= 1", # w_id, d_id, c_id
+        "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = :1 AND OL_D_ID = :2 AND OL_O_ID = :3", # w_id, d_id, o_id        
     },
     
     "PAYMENT": {
-        "getWarehouse": "SELECT W_NAME, W_STREET_1, W_STREET_2, W_CITY, W_STATE, W_ZIP FROM WAREHOUSE WHERE W_ID = ?", # w_id
-        "updateWarehouseBalance": "UPDATE WAREHOUSE SET W_YTD = W_YTD + ? WHERE W_ID = ?", # h_amount, w_id
-        "getDistrict": "SELECT D_NAME, D_STREET_1, D_STREET_2, D_CITY, D_STATE, D_ZIP FROM DISTRICT WHERE D_W_ID = ? AND D_ID = ?", # w_id, d_id
-        "updateDistrictBalance": "UPDATE DISTRICT SET D_YTD = D_YTD + ? WHERE D_W_ID  = ? AND D_ID = ?", # h_amount, d_w_id, d_id
-        "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # w_id, d_id, c_id
-        "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_LAST = ? ORDER BY C_FIRST", # w_id, d_id, c_last
-        "updateBCCustomer": "UPDATE CUSTOMER SET C_BALANCE = ?, C_YTD_PAYMENT = ?, C_PAYMENT_CNT = ?, C_DATA = ? WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id
-        "updateGCCustomer": "UPDATE CUSTOMER SET C_BALANCE = ?, C_YTD_PAYMENT = ?, C_PAYMENT_CNT = ? WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id
-        "insertHistory": "INSERT INTO HISTORY VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "getWarehouse": "SELECT W_NAME, W_STREET_1, W_STREET_2, W_CITY, W_STATE, W_ZIP FROM WAREHOUSE WHERE W_ID = :1", # w_id
+        "updateWarehouseBalance": "UPDATE WAREHOUSE SET W_YTD = W_YTD + :1 WHERE W_ID = :2", # h_amount, w_id
+        "getDistrict": "SELECT D_NAME, D_STREET_1, D_STREET_2, D_CITY, D_STATE, D_ZIP FROM DISTRICT WHERE D_W_ID = :1 AND D_ID = :2", # w_id, d_id
+        "updateDistrictBalance": "UPDATE DISTRICT SET D_YTD = D_YTD + :1 WHERE D_W_ID  = :2 AND D_ID = :3", # h_amount, d_w_id, d_id
+        "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = :1 AND C_D_ID = :2 AND C_ID = :3", # w_id, d_id, c_id
+        "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = :1 AND C_D_ID = :2 AND C_LAST = :3 ORDER BY C_FIRST", # w_id, d_id, c_last
+        "updateBCCustomer": "UPDATE CUSTOMER SET C_BALANCE = :1, C_YTD_PAYMENT = :2, C_PAYMENT_CNT = :3, C_DATA = :4 WHERE C_W_ID = :5 AND C_D_ID = :6 AND C_ID = :7", # c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id
+        "updateGCCustomer": "UPDATE CUSTOMER SET C_BALANCE = :1, C_YTD_PAYMENT = :2, C_PAYMENT_CNT = :3 WHERE C_W_ID = :4 AND C_D_ID = :5 AND C_ID = :6", # c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id
+        "insertHistory": "INSERT INTO HISTORY VALUES (:1, :2, :3, :4, :5, :6, :7, :8)",
     },
     
     "STOCK_LEVEL": {
-        "getOId": "SELECT D_NEXT_O_ID FROM DISTRICT WHERE D_W_ID = ? AND D_ID = ?", 
+        "getOId": "SELECT D_NEXT_O_ID FROM DISTRICT WHERE D_W_ID = :1 AND D_ID = :2", 
         "getStockCount": """
             SELECT COUNT(DISTINCT(OL_I_ID)) FROM ORDER_LINE, STOCK
-            WHERE OL_W_ID = ?
-              AND OL_D_ID = ?
-              AND OL_O_ID < ?
-              AND OL_O_ID >= ?
-              AND S_W_ID = ?
+            WHERE OL_W_ID = :1
+              AND OL_D_ID = :2
+              AND OL_O_ID < :3
+              AND OL_O_ID >= :4
+              AND S_W_ID = :5
               AND S_I_ID = OL_I_ID
-              AND S_QUANTITY < ?
+              AND S_QUANTITY < :6
         """,
     },
 }
@@ -104,26 +104,30 @@ TXN_QUERIES = {
 class TimestenDriver(AbstractDriver):
     DEFAULT_CONFIG = {
         # "driver":           ("The Cubrid driver type", "cubrid-python"),
-        "server":           ("Server IP or Host", "127.0.0.1"),
-        "port":             ("Cubrid broker Port", "33000"),
-        "database":         ("database name","tpcc"),
+        "server":           ("Server IP or Host", "localhost"),
+        "port":             ("N/A Port", "33000"),
+        "DSN":              ("database source name", "tpccCS"),
+        "connStr":          ("direct database source name:[localhost/tpcc:timesten_direct] or "
+                             "TNS_NAME","tpcc_cs"),
         "user":             ("User name", "tpcc"),
         "password":         ("Password ", "tpcc"),
+        "sqlCommand":         ("ttIsql or ttIsqlCS ", "ttIsqlCS")
     }
     
     def __init__(self, ddl):
-        super(TimestenDriver, self).__init__("cubrid", ddl)
-        self.driver_name = "cubrid-python"
-        self.database = "tpcc"
+        super(TimestenDriver, self).__init__("timesten", ddl)
+        self.driver_name = "timesten-python"
+        self.connStr = "tpcc_cs"
+        self.DSN = "tpcc"
         self.server = None
         self.port = "33000"
         self.user = None
         self.passwd = None
         self.conn = None
         self.cursor = None
-        self.connStr = None
         self.warehouses = 4
-        self.ddl = "cubrid-tpcc.sql"
+        self.ddl = "timesten-tpcc.sql"
+        self.sqlCommand = "ttIsqlCS"
         ######################################################
         # for compatablity, this value is not used in altibase.
         self.no_transactions = False
@@ -163,16 +167,15 @@ class TimestenDriver(AbstractDriver):
         self.warehouses = config['warehouses']
         self.server = str(config["server"])
         self.port = str(config["port"])
-        # self.driver_name = str(config["driver"])
-        self.database = str(config["database"])
+        self.connStr = str(config["connStr"])
+        self.DSN = str(config["DSN"])
         self.user = str(config["user"])
         self.passwd = str(config["password"])
-        self.ddl = "cubrid-tpcc.sql"
-
+        self.sqlCommand = str(config["sqlCommand"])
         try:
             if config["reset"]:
                 logging.debug("Drop Table DDL file '%s'" % (self.ddl))        
-                cmd = "csql -C %s@%s -u %s -p %s < %s" % (self.database, self.server, self.user, self.passwd, "drop.sql")
+                cmd = "%s %s < %s" % (self.sqlCommand, self.DSN, "drop.sql")
                 print("command: " + cmd)
                 (result, output) = subprocess.getstatusoutput(cmd)
                 if result != 0:
@@ -181,14 +184,14 @@ class TimestenDriver(AbstractDriver):
 
                 logging.debug("Loading DDL file '%s'" % (self.ddl))
                 ## HACK
-                cmd = "csql -C %s@%s -u %s -p %s  < %s" % (self.database, self.server, self.user, self.passwd, self.ddl)
+                cmd = "%s %s < %s" % (self.sqlCommand, self.DSN, self.ddl)
                 print("command: " + cmd)
                 (result, output) = subprocess.getstatusoutput(cmd)
                 assert result == 0, cmd + "\n" + output
             elif config["load"]: #if load is not true then tables already exists
                 logging.debug("Loading DDL file '%s'" % (self.ddl))
                 ## HACK
-                cmd = "csql -C %s@%s -u %s -p %s  < %s" % (self.database, self.server, self.user, self.passwd, self.ddl)
+                cmd = "%s %s  < %s" % (self.sqlCommand, self.DSN, self.ddl)
                 print("command: " + cmd)
                 (result, output) = subprocess.getstatusoutput(cmd)
                 assert result == 0, cmd + "\n" + output
@@ -197,10 +200,11 @@ class TimestenDriver(AbstractDriver):
             raise   
 
         ## IF
-        self.connStr = "CUBRID:%s:%s:%s:::" % (self.server, self.port, self.database)
-        print("CUBRID connection string: %s" %(self.connStr))
+        # self.connStr = "%s/%s:timesten_direct" % (self.server, self.connStr)
+
+        print("timesten connection string: %s" %(self.connStr))
         self.driver_name = self.connStr
-        self.conn = CUBRIDdb.connect(self.connStr, self.user, self.passwd)
+        self.conn = cx_Oracle.connect( self.user, self.passwd, self.connStr)
         self.cursor = self.conn.cursor()
     
     ## ----------------------------------------------
@@ -225,7 +229,8 @@ class TimestenDriver(AbstractDriver):
             return
         errCount = 0
         insertCount = 0
-        p = ["?"]*len(tuples[0])
+        # p = ["?"]*len(tuples[0])
+        p = [f":{i+1}" for i in range(len(tuples[0]))]
         sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
 
         for data in tuples:
@@ -239,7 +244,11 @@ class TimestenDriver(AbstractDriver):
                 logging.debug(f"Exception: {e} Error executing SQL: {sql}")
                 # If an error occurs, truncate the last element of data to 100 characters and retry
                 data = list(data)
-                data[len(data)-1] = data[len(data)-1][:350]
+                if isinstance(data[-1], str):
+                    data[-1] = data[-1][:350]
+                else:
+                    # Handle non-string data (e.g., float) differently
+                    data[-1] = None  # Or any other appropriate value
                 try:
                     self.cursor.execute(sql, data)
                     insertCount = insertCount + 1
