@@ -111,8 +111,8 @@ class AltibaseDriver(AbstractDriver):
     }
     
     def __init__(self, ddl):
-        super(AltibaseDriver, self).__init__("mariadb", ddl)
-        self.driver_name = None
+        super(AltibaseDriver, self).__init__("altibase", ddl)
+        self.driver_name = "altibase"
         self.database = None
         self.server = None
         self.user = None
@@ -121,7 +121,11 @@ class AltibaseDriver(AbstractDriver):
         self.cursor = None
         self.connStr = None
         self.warehouses = 4
-        self.ddl = "altibase-tpcc.sql"
+        # if default value then replace altibase-tpcc.sql
+        if "pytpcc/tpcc.sql" in ddl:
+            self.ddl = "altibase-tpcc.sql"
+        else:
+            self.ddl = ddl
         ######################################################
         # for compatablity, this value is not used in altibase.
         self.no_transactions = False
@@ -163,7 +167,7 @@ class AltibaseDriver(AbstractDriver):
         self.server = str(config["server"])
         self.user = str(config["user"])
         self.passwd = str(config["password"])
-        self.ddl = "altibase-tpcc.sql"
+        # self.ddl = str(config["ddl"])
 
         try:
             if config["reset"]:

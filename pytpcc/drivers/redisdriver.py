@@ -1305,9 +1305,9 @@ class RedisDriver(AbstractDriver):
 			print('Connectiong to host %s on port %s' % (db, port))
 			self.databases.append(redis.Redis(host=db, port=port, db=0, decode_responses=True))
 			print(str(self.databases[c_num].ping()))
-			self.r_pipes.append(self.databases[c_num].pipeline(False))
+			self.r_pipes.append(self.databases[c_num].pipeline(transaction=True))
 			self.r_sizes.append(0)
-			self.w_pipes.append(self.databases[c_num].pipeline(True))
+			self.w_pipes.append(self.databases[c_num].pipeline(transaction=True))
 			self.w_sizes.append(0)
 			if (first) :
 				first = False

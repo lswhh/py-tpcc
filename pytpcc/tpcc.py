@@ -229,9 +229,9 @@ if __name__ == '__main__':
 
     reportDriver = None
     if driverClass.__name__ != 'MongodbDriver' or driverClass.__name__ != 'AltibaseDriver':
-        print("The driver class is", driverClass.__name__)
+        print("#The driver class is", driverClass.__name__)
     else:
-        print("The driver class is MongodbDriver.")
+        print("#The driver class is MongodbDriver.")
         reportDriver = driver
 
     if args['print_config']:
