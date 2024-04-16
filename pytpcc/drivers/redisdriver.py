@@ -353,7 +353,7 @@ class RedisDriver(AbstractDriver):
 		node = self.shard(w_id)
 		rdr = self.r_pipes[node]
 		wtr = self.w_pipes[node]
-		
+
 		# Initialize result set
 		result = [ ]
 		
@@ -407,7 +407,7 @@ class RedisDriver(AbstractDriver):
 				)
 			rdr.hget('ORDERS.' + order_key[cursor], 'O_C_ID')
 		c_id = rdr.execute()
-		
+
 		for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE + 1) :	
 			cursor = d_id - 1
 			if no_o_id[cursor] == None or c_id[cursor] == None :
@@ -416,7 +416,7 @@ class RedisDriver(AbstractDriver):
 				si_key = self.safeKey([no_o_id[cursor], w_id, d_id])
 			rdr.smembers('ORDER_LINE.INDEXES.SUMOLAMOUNT.' + si_key)
 		ol_ids = rdr.execute()
-		
+
 		if self.debug['delivery'] == 'Verbose' :
 			print('Get Customer ID Query:', time.time() - t0)
 			t0 = time.time()
@@ -434,6 +434,7 @@ class RedisDriver(AbstractDriver):
 					ol_counts[cursor] += 1
 					
 		pipe_results = rdr.execute()
+
 		index = 0
 		counter = 0
 		
@@ -456,6 +457,8 @@ class RedisDriver(AbstractDriver):
 				## Note: This must be reported if > 1%
 				continue
 			
+			# transaction start
+			wtr.multi()
 			#------------------------
 			# Delete New Order Query
 			#------------------------
@@ -568,7 +571,7 @@ class RedisDriver(AbstractDriver):
 		node = self.shard(w_id)
 		rdr = self.r_pipes[node]
 		wtr = self.w_pipes[node]
-		
+
 		# Validate transaction parameters
 		assert len(i_ids) > 0
 		assert len(i_ids) == len(i_w_ids)
@@ -651,6 +654,8 @@ class RedisDriver(AbstractDriver):
 		order_key = self.safeKey([w_id, d_id, d_next_o_id])
 		new_order_key = self.safeKey([d_next_o_id, w_id, d_id])
 		
+		#transaction start
+		wtr.multi()
 		#-------------------------------
 		# Increment Next Order ID Query
 		#-------------------------------
@@ -869,8 +874,8 @@ class RedisDriver(AbstractDriver):
 		# Initialize Redis pipelining
 		node = self.shard(w_id)
 		rdr = self.databases[node].pipeline(False)
-		wtr = self.databases[node].pipeline(True)
-		
+		# wtr = self.databases[node].pipeline(True)
+
 		# Validate transaction parameters
 		assert w_id, pformat(params)
 		assert d_id, pformat(params)
@@ -881,7 +886,7 @@ class RedisDriver(AbstractDriver):
 			#-----------------------------------
 			customer_key = self.safeKey([w_id, d_id, c_id])
 			rdr.hgetall('CUSTOMER.' + customer_key)
-			results = rdr.execute();
+			results = rdr.execute()
 			customer = results[0]
 			
 			if self.debug['order-status'] == 'Verbose' :
@@ -893,7 +898,7 @@ class RedisDriver(AbstractDriver):
 			#----------------------------------
 			si_key = self.safeKey([w_id, d_id, c_last])
 			rdr.smembers('CUSTOMER.INDEXES.NAMESEARCH.' + si_key)
-			results = rdr.execute();
+			results = rdr.execute()
 			customer_id_set = results[0]
 			
 			customer_ids = [ ]
@@ -1021,7 +1026,7 @@ class RedisDriver(AbstractDriver):
 		node = self.shard(w_id)
 		rdr = self.r_pipes[node]
 		wtr = self.w_pipes[node]
-		
+
 		t0 = time.time()
 		if c_id != None:
 			#--------------------------
@@ -1101,7 +1106,8 @@ class RedisDriver(AbstractDriver):
 		if self.debug['payment'] == 'Verbose' :
 			print('Get District Query:', time.time() - t0)
 			t0 = time.time()
-			
+		# transaction start
+		wtr.multi()
 		#--------------------------------
 		# Update Warehouse Balance Query
 		#--------------------------------
@@ -1183,6 +1189,7 @@ class RedisDriver(AbstractDriver):
 		self.metadata.incr('HISTORY.next_score')
 		
 		history_key = self.safeKey(next_score)
+		wtr.multi()
 		wtr.hmset(
 			'HISTORY.' + history_key,
 			{
