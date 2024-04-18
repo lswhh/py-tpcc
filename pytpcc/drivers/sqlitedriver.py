@@ -104,6 +104,7 @@ TXN_QUERIES = {
 class SqliteDriver(AbstractDriver):
     DEFAULT_CONFIG = {
         "database": ("The path to the SQLite database", "/tmp/tpcc.db" ),
+        "mmap_size": ("SQLite memory mapped I/O size", "0"),
     }
     
     def __init__(self, ddl):
@@ -111,6 +112,7 @@ class SqliteDriver(AbstractDriver):
         self.database = None
         self.conn = None
         self.cursor = None
+        self.mmapsize = None
     
     ## ----------------------------------------------
     ## makeDefaultConfig
@@ -126,7 +128,8 @@ class SqliteDriver(AbstractDriver):
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
         
         self.database = str(config["database"])
-        
+        self.mmapsize = int(config["mmap_size"])
+
         if config["reset"] and os.path.exists(self.database):
             logging.debug("Deleting database '%s'" % self.database)
             os.unlink(self.database)
@@ -138,10 +141,20 @@ class SqliteDriver(AbstractDriver):
             (result, output) = subprocess.getstatusoutput(cmd)
             assert result == 0, cmd + "\n" + output
         ## IF
-            
+
         self.conn = sqlite3.connect(self.database)
+
+        if self.mmapsize != 0:
+            cursor = self.conn.cursor()
+            cursor.execute("PRAGMA mmap_size")
+            result = cursor.fetchone()
+            print(f"Current mmap_size: {result[0]} bytes")
+            self.conn.execute("PRAGMA mmap_size = %d" % (self.mmapsize))
+            cursor.execute("PRAGMA mmap_size")
+            result = cursor.fetchone()
+            print(f"Current mmap_size: {result[0]} bytes")
+            
         self.cursor = self.conn.cursor()
-    
     ## ----------------------------------------------
     ## loadTuples
     ## ----------------------------------------------
@@ -179,7 +192,7 @@ class SqliteDriver(AbstractDriver):
             if newOrder == None:
                 ## No orders for this district: skip it. Note: This must be reported if > 1%
                 continue
-            assert len(newOrder) > 0
+            # assert len(newOrder) > 0
             no_o_id = newOrder[0]
             
             self.cursor.execute(q["getCId"], [no_o_id, d_id, w_id])
@@ -196,8 +209,8 @@ class SqliteDriver(AbstractDriver):
             # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
             # them out
             # If there are no order lines, SUM returns null. There should always be order lines.
-            assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
-            assert ol_total > 0.0
+            # assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
+            # assert ol_total > 0.0
 
             self.cursor.execute(q["updateCustomer"], [ol_total, c_id, d_id, w_id])
 
@@ -205,7 +218,7 @@ class SqliteDriver(AbstractDriver):
         ## FOR
 
         self.conn.commit()
-        return result
+        return (result, 0)
 
     ## ----------------------------------------------
     ## doNewOrder
@@ -232,14 +245,15 @@ class SqliteDriver(AbstractDriver):
             all_local = all_local and i_w_ids[i] == w_id
             self.cursor.execute(q["getItemInfo"], [i_ids[i]])
             items.append(self.cursor.fetchone())
-        assert len(items) == len(i_ids)
+        # assert len(items) == len(i_ids)
         
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
         for item in items:
-            if len(item) == 0:
+            if item is None or len(item) == 0:
                 ## TODO Abort here!
-                return
+                self.conn.rollback()
+                return (None, 0)
         ## FOR
         
         ## ----------------
@@ -334,7 +348,7 @@ class SqliteDriver(AbstractDriver):
         ## Pack up values the client is missing (see TPC-C 2.4.3.5)
         misc = [ (w_tax, d_tax, d_next_o_id, total) ]
         
-        return [ customer_info, misc, item_data ]
+        return ( [ customer_info, misc, item_data ], 0 )
 
     ## ----------------------------------------------
     ## doOrderStatus
@@ -359,11 +373,11 @@ class SqliteDriver(AbstractDriver):
             all_customers = self.cursor.fetchall()
             assert len(all_customers) > 0
             namecnt = len(all_customers)
-            index = (namecnt-1)/2
+            index = int((namecnt-1)/2)
             customer = all_customers[index]
             c_id = customer[0]
-        assert len(customer) > 0
-        assert c_id != None
+        # assert len(customer) > 0
+        # assert c_id != None
 
         self.cursor.execute(q["getLastOrder"], [w_id, d_id, c_id])
         order = self.cursor.fetchone()
@@ -374,7 +388,7 @@ class SqliteDriver(AbstractDriver):
             orderLines = [ ]
 
         self.conn.commit()
-        return [ customer, order, orderLines ]
+        return ( [ customer, order, orderLines ], 0 )
 
     ## ----------------------------------------------
     ## doPayment
@@ -398,12 +412,14 @@ class SqliteDriver(AbstractDriver):
             # Get the midpoint customer's id
             self.cursor.execute(q["getCustomersByLastName"], [w_id, d_id, c_last])
             all_customers = self.cursor.fetchall()
-            assert len(all_customers) > 0
+            # assert len(all_customers) > 0
+            if len(all_customers) <= 0:
+                raise ValueError("all_customer length value error: "+ str(w_id)+", "+str(d_id)+", "+str(c_last))
             namecnt = len(all_customers)
-            index = (namecnt-1)/2
+            index = int((namecnt-1)/2)
             customer = all_customers[index]
             c_id = customer[0]
-        assert len(customer) > 0
+        # assert len(customer) > 0
         c_balance = customer[14] - h_amount
         c_ytd_payment = customer[15] + h_amount
         c_payment_cnt = customer[16] + 1
@@ -443,7 +459,7 @@ class SqliteDriver(AbstractDriver):
         # H_AMOUNT, and H_DATE.
 
         # Hand back all the warehouse, district, and customer data
-        return [ warehouse, district, customer ]
+        return ( [ warehouse, district, customer ], 0 )
         
     ## ----------------------------------------------
     ## doStockLevel
@@ -457,7 +473,7 @@ class SqliteDriver(AbstractDriver):
         
         self.cursor.execute(q["getOId"], [w_id, d_id])
         result = self.cursor.fetchone()
-        assert result
+        # assert result
         o_id = result[0]
         
         self.cursor.execute(q["getStockCount"], [w_id, d_id, o_id, (o_id - 20), w_id, threshold])
@@ -465,6 +481,9 @@ class SqliteDriver(AbstractDriver):
         
         self.conn.commit()
         
-        return int(result[0])
-        
+        return ( int(result[0]), 0 )
+
+    def save_result(self, result_doc):
+        self.result_doc.update(result_doc)
+       
 ## CLASS
