@@ -139,3 +139,99 @@ CREATE TABLE ORDER_LINE (
 --CREATE INDEX IDX_ORDER_LINE_3COL ON ORDER_LINE (OL_W_ID,OL_D_ID,OL_O_ID);
 --CREATE INDEX IDX_ORDER_LINE_2COL ON ORDER_LINE (OL_W_ID,OL_D_ID);
 CREATE INDEX IDX_ORDER_LINE_TREE ON ORDER_LINE (OL_W_ID,OL_D_ID,OL_O_ID);
+
+
+-- For altiproc driver 
+CREATE OR REPLACE PROCEDURE DO_DELIVERY_PROCEDURE (
+    IN_W_ID INTEGER,
+    IN_O_CARRIER_ID INTEGER,
+    IN_OL_DELIVERY_D DATE,
+    IN_D_ID INTEGER,
+    IN_C_ID INTEGER,
+    IN_NO_O_ID INTEGER
+)
+IS
+    V_OL_TOTAL FLOAT;
+BEGIN
+    -- 새 주문 삭제
+    DELETE FROM NEW_ORDER WHERE NO_D_ID = IN_D_ID AND NO_W_ID = IN_W_ID AND NO_O_ID = IN_NO_O_ID;
+
+    -- 주문 업데이트
+    UPDATE ORDERS SET O_CARRIER_ID = IN_O_CARRIER_ID WHERE O_ID = IN_NO_O_ID AND O_D_ID = IN_D_ID AND O_W_ID = IN_W_ID;
+    UPDATE ORDER_LINE SET OL_DELIVERY_D = IN_OL_DELIVERY_D WHERE OL_O_ID = IN_NO_O_ID AND OL_D_ID = IN_D_ID AND OL_W_ID = IN_W_ID;
+
+    -- 총액 계산
+    SELECT SUM(OL_AMOUNT) INTO V_OL_TOTAL FROM ORDER_LINE WHERE OL_O_ID = IN_NO_O_ID AND OL_D_ID = IN_D_ID AND OL_W_ID = IN_W_ID;
+
+    -- 고객 정보 업데이트
+    UPDATE CUSTOMER SET C_BALANCE = C_BALANCE + V_OL_TOTAL WHERE C_ID = IN_C_ID AND C_D_ID = IN_D_ID AND C_W_ID = IN_W_ID;
+
+    COMMIT;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE DO_NEW_ORDER_PROCEDURE (
+    P_W_ID              IN INTEGER,
+    P_D_ID              IN INTEGER,
+    P_C_ID              IN INTEGER,
+    P_O_ENTRY_D         IN DATE,
+    P_OL_I_ID           IN INTEGER,
+    P_OL_SUPPLY_W_ID    IN INTEGER,
+    P_OL_QUANTITY       IN INTEGER,
+    P_I_NAME            IN VARCHAR(32),
+    P_I_DATA            IN VARCHAR(64),
+    P_I_PRICE           IN FLOAT, 
+    P_D_NEXT_O_ID       IN INTEGER,
+    P_OL_NUMBER         IN INTEGER
+)
+IS
+    v_sql_stmt      VARCHAR(4000);
+    v_quantity      INTEGER;
+    v_data          VARCHAR(64);
+    v_ytd           INTEGER;
+    v_order_cnt     INTEGER;
+    v_remote_cnt    INTEGER;
+    v_dist          VARCHAR(64);
+    v_brand_generic CHAR(1);
+    v_ol_amount     NUMBER(12, 2);
+BEGIN
+    -- 재고 정보 가져오기
+    v_sql_stmt := 'SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, ' ||
+              'S_DIST_' || TO_CHAR(P_D_ID, '09') || ' ' ||
+              'FROM STOCK WHERE S_I_ID = ? AND S_W_ID = ?';
+    EXECUTE IMMEDIATE v_sql_stmt INTO v_quantity, v_data, v_ytd, v_order_cnt, v_remote_cnt, v_dist
+                USING P_OL_I_ID, P_OL_SUPPLY_W_ID;
+    -- norow일때 프로시저 정상종료
+
+    -- 재고 업데이트
+    v_ytd := v_ytd + P_OL_QUANTITY;
+    IF v_quantity >= P_OL_QUANTITY + 10 THEN
+        v_quantity := v_quantity - P_OL_QUANTITY;
+    ELSE
+        v_quantity := v_quantity + 91 - P_OL_QUANTITY;
+    END IF;
+    v_order_cnt := v_order_cnt + 1;
+    
+    IF P_OL_SUPPLY_W_ID != P_W_ID THEN
+        v_remote_cnt := v_remote_cnt + 1;
+    END IF;
+
+    UPDATE STOCK
+    SET S_QUANTITY = v_quantity, S_YTD = v_ytd, S_ORDER_CNT = v_order_cnt, S_REMOTE_CNT = v_remote_cnt
+    WHERE S_I_ID = P_OL_I_ID AND S_W_ID = P_OL_SUPPLY_W_ID;
+
+    -- 브랜드/제네릭 결정
+    IF P_I_DATA LIKE '%ORIGINAL%' AND v_data LIKE '%ORIGINAL%' THEN
+        v_brand_generic := 'B';
+    ELSE
+        v_brand_generic := 'G';
+    END IF;
+
+    -- 주문 라인 생성
+    v_ol_amount := P_OL_QUANTITY * P_I_PRICE;
+    
+    INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO)
+    VALUES (P_D_NEXT_O_ID, P_D_ID, P_W_ID, P_OL_NUMBER, P_OL_I_ID, P_OL_SUPPLY_W_ID, P_O_ENTRY_D, P_OL_QUANTITY, v_ol_amount, v_dist);
+     
+END;
+/
