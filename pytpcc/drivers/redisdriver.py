@@ -1278,8 +1278,8 @@ class RedisDriver(AbstractDriver):
 			rdr.hgetall('ORDER_LINE.' + str(line_id))
 		order_lines = rdr.execute()
 		
-		for line['OL_I_ID'] in order_lines :
-			stock_key = self.safeKey([w_id, line])
+		for line in order_lines :
+			stock_key = self.safeKey([w_id, line['OL_I_ID']])
 			rdr.hget('STOCK.' + stock_key, 'S_QUANTITY')
 		stocks = rdr.execute()
 		

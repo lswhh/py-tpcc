@@ -200,7 +200,10 @@ class AltiprocDriver(AbstractDriver):
         self.connStr = "DSN=%s;UID=%s;PWD=%s;" % (self.driver_name, self.user,self.passwd)
         print("connection string: %s" %(self.connStr))
         self.conn = pyodbc.connect(self.connStr)
+
         self.cursor = self.conn.cursor()
+        # fast_executemany 활성화
+        self.cursor.fast_executemany = True
     
     ## ----------------------------------------------
     ## loadTuples
@@ -269,6 +272,7 @@ class AltiprocDriver(AbstractDriver):
         ol_delivery_d = params["ol_delivery_d"]
 
         result = [ ]
+        data_list = [ ]
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
             self.cursor.execute(q["getNewOrder"], [d_id, w_id])
             newOrder = self.cursor.fetchone()
@@ -280,14 +284,16 @@ class AltiprocDriver(AbstractDriver):
             
             self.cursor.execute(q["getCId"], [no_o_id, d_id, w_id])
             c_id = self.cursor.fetchone()[0]
+            # executemany를 위해 매개변수들을 리스트에 추가합니다.
+            data_list.append([w_id, o_carrier_id, ol_delivery_d, d_id, c_id, no_o_id])
             
-            self.cursor.execute("{call DO_DELIVERY_PROCEDURE(?,?,?,?,?,?)}", [ w_id, 
-                                                            o_carrier_id, 
-                                                            ol_delivery_d, 
-                                                            d_id,
-                                                            c_id,
-                                                            no_o_id
-                                                            ])
+            # self.cursor.execute("{call DO_DELIVERY_PROCEDURE(?,?,?,?,?,?)}", [ w_id, 
+            #                                                 o_carrier_id, 
+            #                                                 ol_delivery_d, 
+            #                                                 d_id,
+            #                                                 c_id,
+            #                                                 no_o_id
+            #                                                 ])
             # self.cursor.execute(q["sumOLAmount"], [no_o_id, d_id, w_id])
             # ol_total = self.cursor.fetchone()[0]
 
@@ -306,6 +312,8 @@ class AltiprocDriver(AbstractDriver):
 
             result.append((d_id, no_o_id))
         ## FOR
+        if data_list:  # 데이터 리스트가 비어있지 않은 경우에만 executemany를 호출합니다.
+            self.cursor.executemany("{call DO_DELIVERY_PROCEDURE(?,?,?,?,?,?)}", data_list)
 
         self.conn.commit()
         
@@ -377,6 +385,7 @@ class AltiprocDriver(AbstractDriver):
         ## ----------------
         item_data = [ ]
         total = 0
+        data_list = [ ]
         for i in range(len(i_ids)):
             ol_number = i + 1
             ol_supply_w_id = i_w_ids[i]
@@ -388,45 +397,99 @@ class AltiprocDriver(AbstractDriver):
             i_data = itemInfo[2]
             i_price = itemInfo[0]
 
-            self.cursor.execute(q["getStockInfo"] % (d_id), [ol_i_id, ol_supply_w_id])
-            stockInfo = self.cursor.fetchone()
-            if len(stockInfo) == 0:
-                logging.warn("No STOCK record for (ol_i_id=%d, ol_supply_w_id=%d)" % (ol_i_id, ol_supply_w_id))
-                continue
-            s_quantity = stockInfo[0]
-            s_ytd = stockInfo[2]
-            s_order_cnt = stockInfo[3]
-            s_remote_cnt = stockInfo[4]
-            s_data = stockInfo[1]
-            s_dist_xx = stockInfo[5] # Fetches data from the s_dist_[d_id] column
+            # self.cursor.execute("""{call DO_NEW_ORDER_PROCEDURE(
+            #                         ?,
+            #                         ?,
+            #                         ?,
+            #                         ?,
+            #                         ?,
+            #                         ?,
+            #                         ?,
+            #                         ?,
+            #                         ?,
+            #                         ?, 
+            #                         ?,
+            #                         ?
+            #                     )}""", 
+            #                     [ w_id,
+            #                      d_id,
+            #                      c_id,  
+            #                      o_entry_d,
+            #                      ol_i_id,
+            #                      ol_supply_w_id,
+            #                      ol_quantity,
+            #                      i_name,
+            #                      i_data,
+            #                      i_price,
+            #                      d_next_o_id,
+            #                      ol_number
+            #                     ])
 
-            ## Update stock
-            s_ytd += ol_quantity
-            if s_quantity >= ol_quantity + 10:
-                s_quantity = s_quantity - ol_quantity
-            else:
-                s_quantity = s_quantity + 91 - ol_quantity
-            s_order_cnt += 1
+            # self.cursor.execute(q["getStockInfo"] % (d_id), [ol_i_id, ol_supply_w_id])
+            # stockInfo = self.cursor.fetchone()
+            # if len(stockInfo) == 0:
+            #     logging.warn("No STOCK record for (ol_i_id=%d, ol_supply_w_id=%d)" % (ol_i_id, ol_supply_w_id))
+            #     continue
+            # s_quantity = stockInfo[0]
+            # s_ytd = stockInfo[2]
+            # s_order_cnt = stockInfo[3]
+            # s_remote_cnt = stockInfo[4]
+            # s_data = stockInfo[1]
+            # s_dist_xx = stockInfo[5] # Fetches data from the s_dist_[d_id] column
+
+            # ## Update stock
+            # s_ytd += ol_quantity
+            # if s_quantity >= ol_quantity + 10:
+            #     s_quantity = s_quantity - ol_quantity
+            # else:
+            #     s_quantity = s_quantity + 91 - ol_quantity
+            # s_order_cnt += 1
             
-            if ol_supply_w_id != w_id: s_remote_cnt += 1
+            # if ol_supply_w_id != w_id: s_remote_cnt += 1
 
-            self.cursor.execute(q["updateStock"], [s_quantity, s_ytd, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id])
+            # self.cursor.execute(q["updateStock"], [s_quantity, s_ytd, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id])
 
-            if i_data.find(constants.ORIGINAL_STRING) != -1 and s_data.find(constants.ORIGINAL_STRING) != -1:
-                brand_generic = 'B'
-            else:
-                brand_generic = 'G'
+            # if i_data.find(constants.ORIGINAL_STRING) != -1 and s_data.find(constants.ORIGINAL_STRING) != -1:
+            #     brand_generic = 'B'
+            # else:
+            #     brand_generic = 'G'
 
             ## Transaction profile states to use "ol_quantity * i_price"
             ol_amount = ol_quantity * i_price
             total += ol_amount
 
-            self.cursor.execute(q["createOrderLine"], [d_next_o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, o_entry_d, ol_quantity, ol_amount, s_dist_xx])
+            # self.cursor.execute(q["createOrderLine"], [d_next_o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, o_entry_d, ol_quantity, ol_amount, s_dist_xx])
 
-            ## Add the info to be returned
-            item_data.append( (i_name, s_quantity, brand_generic, i_price, ol_amount) )
+            ## Add the info to be returned (s_quantity, brand_generic ==> 0, 'B')
+            item_data.append( (i_name, 0, 'B', i_price, ol_amount) )
+            data_list.append([  w_id,
+                                d_id,
+                                c_id,  
+                                o_entry_d,
+                                ol_i_id,
+                                ol_supply_w_id,
+                                ol_quantity,
+                                i_name,
+                                i_data,
+                                i_price,
+                                d_next_o_id,
+                                ol_number
+                            ])
         ## FOR
-        
+        self.cursor.executemany("""{call DO_NEW_ORDER_PROCEDURE(
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?
+                        )}""", data_list)
         ## Commit!
         self.conn.commit()
 
@@ -510,9 +573,11 @@ class AltiprocDriver(AbstractDriver):
             index = int((namecnt-1)/2)
             customer = all_customers[index]
             # print("all_customers:  " +all_customers)
-            # print("customer:  "+customer)
             c_id = customer[0]
+        # print(customer)            
         # assert len(customer) > 0
+        if customer[14] == None:
+            customer[14] = 0
         c_balance = customer[14] - h_amount
         c_ytd_payment = customer[15] + h_amount
         c_payment_cnt = customer[16] + 1
@@ -524,24 +589,45 @@ class AltiprocDriver(AbstractDriver):
         self.cursor.execute(q["getDistrict"], [w_id, d_id])
         district = self.cursor.fetchone()
         
-        self.cursor.execute(q["updateWarehouseBalance"], [h_amount, w_id])
-        self.cursor.execute(q["updateDistrictBalance"], [h_amount, w_id, d_id])
 
-        # Customer Credit Information
-        if customer[11] == constants.BAD_CREDIT:
-            newData = " ".join(map(str, [c_id, c_d_id, c_w_id, d_id, w_id, h_amount]))
-            c_data = (newData + "|" + c_data)
-            if len(c_data) > constants.MAX_C_DATA: c_data = c_data[:constants.MAX_C_DATA]
-            self.cursor.execute(q["updateBCCustomer"], [c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id])
-        else:
-            c_data = ""
-            self.cursor.execute(q["updateGCCustomer"], [c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id])
+        # self.cursor.execute(q["updateWarehouseBalance"], [h_amount, w_id])
+        # self.cursor.execute(q["updateDistrictBalance"], [h_amount, w_id, d_id])
 
-        # Concatenate w_name, four spaces, d_name
+        # # Customer Credit Information
+        # if customer[11] == constants.BAD_CREDIT:
+        #     newData = " ".join(map(str, [c_id, c_d_id, c_w_id, d_id, w_id, h_amount]))
+        #     c_data = (newData + "|" + c_data)
+        #     if len(c_data) > constants.MAX_C_DATA: c_data = c_data[:constants.MAX_C_DATA]
+        #     self.cursor.execute(q["updateBCCustomer"], [c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id])
+        # else:
+        #     c_data = ""
+        #     self.cursor.execute(q["updateGCCustomer"], [c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id])
+
+        # # Concatenate w_name, four spaces, d_name
         h_data = "%s    %s" % (warehouse[0], district[0])
-        # Create the history record
-        self.cursor.execute(q["insertHistory"], [c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, h_data])
-
+        # # Create the history record
+        # self.cursor.execute(q["insertHistory"], [c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, h_data])
+        self.cursor.execute("""{call DO_PAYMENT (
+                                ?,
+                                ?,
+                                ?,
+                                ?,
+                                ?,
+                                ?,
+                                ?,
+                                ?,
+                                ?
+                            )}""", 
+                            [ w_id,
+                              d_id,
+                              h_amount,
+                              c_w_id,
+                              c_d_id,
+                              c_id,
+                              h_date,
+                              customer[11],
+                              h_data
+                            ])
         self.conn.commit()
 
         # TPC-C 2.5.3.3: Must display the following fields:

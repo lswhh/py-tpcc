@@ -170,6 +170,7 @@ BEGIN
 END;
 /
 
+
 CREATE OR REPLACE PROCEDURE DO_NEW_ORDER_PROCEDURE (
     P_W_ID              IN INTEGER,
     P_D_ID              IN INTEGER,
@@ -197,7 +198,7 @@ IS
 BEGIN
     -- 재고 정보 가져오기
     v_sql_stmt := 'SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, ' ||
-              'S_DIST_' || TO_CHAR(P_D_ID, '09') || ' ' ||
+              'S_DIST_' || LPAD(P_D_ID, 2, '0') || ' ' ||
               'FROM STOCK WHERE S_I_ID = ? AND S_W_ID = ?';
     EXECUTE IMMEDIATE v_sql_stmt INTO v_quantity, v_data, v_ytd, v_order_cnt, v_remote_cnt, v_dist
                 USING P_OL_I_ID, P_OL_SUPPLY_W_ID;
@@ -233,5 +234,63 @@ BEGIN
     INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO)
     VALUES (P_D_NEXT_O_ID, P_D_ID, P_W_ID, P_OL_NUMBER, P_OL_I_ID, P_OL_SUPPLY_W_ID, P_O_ENTRY_D, P_OL_QUANTITY, v_ol_amount, v_dist);
      
+END;
+/
+
+
+CREATE OR REPLACE PROCEDURE DO_PAYMENT(
+     p_w_id      IN   INTEGER,
+     p_d_id      IN   INTEGER,
+     p_h_amount  IN   FLOAT,
+     p_c_w_id    IN   INTEGER,
+     p_c_d_id    IN   INTEGER,
+     p_c_id      IN   INTEGER,
+     p_h_date    IN   DATE,
+     p_c_11      IN   VARCHAR(2),
+     p_h_data    IN   VARCHAR(32)
+)
+IS
+    v_c_balance FLOAT;
+    v_c_ytd_payment FLOAT;
+    v_c_payment_cnt INTEGER;
+    v_c_data VARCHAR(500);
+    v_c_data_tmp VARCHAR(1500);
+    v_bad_credit VARCHAR(2) := 'BC';
+    v_max_c_data INTEGER := 500;
+    V_NEW_DATA VARCHAR(1000);
+BEGIN
+    -- 창고 및 지구 잔액 업데이트
+    UPDATE WAREHOUSE SET W_YTD = W_YTD + p_h_amount WHERE W_ID = p_w_id;
+    UPDATE DISTRICT SET D_YTD = D_YTD + p_h_amount WHERE D_W_ID = p_w_id AND D_ID = p_d_id;
+
+    -- 고객 정보 조회 및 업데이트
+    SELECT C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA INTO v_c_balance, v_c_ytd_payment, v_c_payment_cnt, v_c_data
+    FROM CUSTOMER WHERE C_W_ID = p_c_w_id AND C_D_ID = p_c_d_id AND C_ID = p_c_id;
+
+    v_c_balance := v_c_balance - p_h_amount;
+    v_c_ytd_payment := v_c_ytd_payment + p_h_amount;
+    v_c_payment_cnt := v_c_payment_cnt + 1;
+
+    IF p_c_11 = 'BC' THEN
+        -- 새로운 데이터 생성
+        v_new_data := p_c_id || ' ' || p_c_d_id || ' ' || p_c_w_id || ' ' || p_d_id || ' ' || p_w_id || ' ' || p_h_amount;
+        -- 기존 데이터와 새로운 데이터 결합
+        v_c_data_tmp := v_new_data || '|' || v_c_data;
+        -- 데이터 길이가 최대 길이를 초과하지 않도록 자르기
+        IF LENGTH(v_c_data) > v_max_c_data THEN
+            v_c_data := SUBSTR(v_c_data_tmp, 1, v_max_c_data);
+        END IF;
+
+        UPDATE CUSTOMER SET C_BALANCE = v_c_balance, C_YTD_PAYMENT = v_c_ytd_payment, C_PAYMENT_CNT = v_c_payment_cnt, C_DATA = v_c_data
+        WHERE C_W_ID = p_c_w_id AND C_D_ID = p_c_d_id AND C_ID = p_c_id;
+    ELSE
+        UPDATE CUSTOMER SET C_BALANCE = v_c_balance, C_YTD_PAYMENT = v_c_ytd_payment, C_PAYMENT_CNT = v_c_payment_cnt
+        WHERE C_W_ID = p_c_w_id AND C_D_ID = p_c_d_id AND C_ID = p_c_id;
+    END IF;
+
+    -- 히스토리 삽입
+    INSERT INTO HISTORY (H_C_ID, H_C_D_ID, H_C_W_ID, H_D_ID, H_W_ID, H_DATE, H_AMOUNT, H_DATA) VALUES (p_c_id, p_c_d_id, p_c_w_id, p_d_id, p_w_id, p_h_date, p_h_amount, p_h_data);
+
+    -- 트랜잭션 커밋은 Altibase의 자동 커밋 설정에 따른다.
 END;
 /

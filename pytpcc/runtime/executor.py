@@ -70,7 +70,7 @@ class Executor:
                 return -1
             except (Exception, AssertionError) as ex:
                 # logging.warn("Failed to execute Transaction '%s': %s" % (txn, ex))
-                # traceback.print_exc(file=sys.stdout)
+                traceback.print_exc(file=sys.stdout)
                 print("Aborting some transaction with some error %s %s" % (txn, ex))
                 global_result.abortTransaction(global_txn_id)
                 batch_result.abortTransaction(batch_txn_id)
